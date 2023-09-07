@@ -1,21 +1,34 @@
 import { Box, Button, Input } from "@chakra-ui/react";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useDebouncedCallback } from "use-debounce";
+import { pageQueryKey, searchQueryKey } from "../../constans";
+import { FetchParams } from "../../App";
 
 type SearchBarProps = {
-  query: string;
-  setQuery: (searchText: string) => void;
-  fetchSearch: () => void;
+  fetchSearch: (params: FetchParams) => void;
 };
 
-export function SearchBar({ setQuery, query, fetchSearch }: SearchBarProps) {
-  const debouncedFeatchSearch = useDebouncedCallback(fetchSearch, 300);
+export function SearchBar({ fetchSearch }: SearchBarProps) {
+  const [search, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState(search.get(searchQueryKey) ?? "");
+
+  const handleFetchSearch = ({ page, query }: FetchParams) => {
+    fetchSearch({ page, query });
+    setSearchParams((prev) => {
+      prev.set(searchQueryKey, query);
+      prev.set(pageQueryKey, "1");
+      return prev;
+    });
+  };
+
+  const debouncedFeatchSearch = useDebouncedCallback(handleFetchSearch, 300);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const searchText = e.target.value;
     setQuery(searchText);
     if (searchText.length > 2 || searchText.length === 0) {
-      debouncedFeatchSearch();
+      debouncedFeatchSearch({ page: 1, query });
     }
   };
 
@@ -23,7 +36,7 @@ export function SearchBar({ setQuery, query, fetchSearch }: SearchBarProps) {
     const keyDownHandler = (event: KeyboardEvent) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        fetchSearch();
+        handleFetchSearch({ page: 1, query });
       }
     };
 
@@ -32,7 +45,7 @@ export function SearchBar({ setQuery, query, fetchSearch }: SearchBarProps) {
     return () => {
       document.removeEventListener("keydown", keyDownHandler);
     };
-  }, [fetchSearch]);
+  }, [handleFetchSearch]);
 
   return (
     <Box display="flex" gap="10" paddingY="40px">
@@ -42,7 +55,9 @@ export function SearchBar({ setQuery, query, fetchSearch }: SearchBarProps) {
         onChange={handleSearchChange}
         value={query}
       />
-      <Button onClick={fetchSearch}>Search</Button>
+      <Button onClick={() => handleFetchSearch({ page: 1, query })}>
+        Search
+      </Button>
     </Box>
   );
 }

@@ -28,16 +28,17 @@ export type FavoriteMovie = {
   title: string;
 };
 
+export type FetchParams = {
+  page: number;
+  query: string;
+};
+
 function App() {
   const [movies, setMovies] = useState<Movie[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
-  const [search, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState(search.get(searchQueryKey) ?? "");
-  const [currentPage, setCurrentPage] = useState(
-    parseInt(search.get(pageQueryKey) ?? "1")
-  );
+  const [search] = useSearchParams();
   const [favoriteMovies, setFavrotieMovies] = useState<FavoriteMovie[]>([]);
 
   const addToFavoriteMovies = useCallback((favoriteMovie: FavoriteMovie) => {
@@ -59,7 +60,7 @@ function App() {
     );
   };
 
-  const fetchMovies = async () => {
+  const fetchMovies = async ({ page, query }: FetchParams) => {
     if (!query) {
       setMovies([]);
       setTotal(0);
@@ -68,12 +69,12 @@ function App() {
     setLoading(true);
     try {
       const response = await fetch(
-        `/fetchMovies?page=${currentPage}&query=${encodeURIComponent(query)}`
+        `/fetchMovies?page=${page}&query=${encodeURIComponent(query)}`
       );
       const { results, ...paginationData }: MovieResponseType =
         await response.json();
       setMovies(results);
-      setTotal(paginationData.total_pages ?? 0);
+      setTotal(paginationData.total_results ?? 0);
       showToast(response.headers.has(CacheHitHeaderKey));
     } catch (e) {
       setError(`Error ${e}`);
@@ -83,23 +84,18 @@ function App() {
   };
 
   useEffect(() => {
-    fetchMovies();
-    window.scrollTo(0, 0);
-  }, [currentPage]);
-
-  useEffect(() => {
-    setSearchParams((prev) => {
-      prev.set(searchQueryKey, query);
-      prev.set(pageQueryKey, currentPage.toString());
-      return prev;
-    });
-  }, [query, currentPage, setSearchParams]);
+    const pageParam = search.get(pageQueryKey);
+    const queryParam = search.get(searchQueryKey);
+    if (queryParam && pageParam) {
+      fetchMovies({ page: +pageParam, query: queryParam });
+    }
+  }, []);
 
   if (error) return <p>{error}</p>;
 
   return (
     <Box backgroundColor={"gray.300"} minH="100vh" padding="20px ">
-      <SearchBar query={query} setQuery={setQuery} fetchSearch={fetchMovies} />
+      <SearchBar fetchSearch={fetchMovies} />
       <FavoriteMovies favoriteMovies={favoriteMovies} />
       <Cards
         cards={movies}
@@ -107,11 +103,7 @@ function App() {
         addToFavoriteMovies={addToFavoriteMovies}
         deleteFromFaviteMovies={deleteFromFaviteMovies}
       />
-      <Pagination
-        total={total}
-        current={currentPage}
-        onChange={setCurrentPage}
-      />
+      <Pagination total={total} fetchSearch={fetchMovies} />
       {loading && <Loader />}
       <ToastContainer />
     </Box>
